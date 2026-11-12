@@ -131,3 +131,12 @@ The portable build runs Vinext directly without a host `timeout` command. The ma
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+## Careers homepage and HR management
+
+- `/` is the public company introduction and current openings; `/?view=apply` opens the existing application form.
+- `/?view=manage` opens homepage management. HR can add/edit open or closed positions, delete positions, and update the company introduction in Thai and English.
+- Manage API endpoints require a signed-in ChatGPT identity whose verified email appears in the comma-separated `HR_ADMIN_EMAILS` runtime setting. Keep this setting server-side in Sites. The public endpoint returns open positions only. Adding an HR account requires updating this allowlist; selecting the HR tab does not grant write access.
+- Positions and company text use the `jobs` and `homepage_content` D1 tables. Existing `applications` rows and attached files are unchanged. Removing a position never removes applications.
+- No openings are seeded. Until HR adds an open position, visitors see an empty state and may submit a general application.
+- Company introduction is based on https://www.royalphuketmarina.com/ and can be maintained by HR.
