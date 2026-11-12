@@ -8,7 +8,7 @@ const labels:Data={position:'ตำแหน่งที่ต้องการ
 const age=(s:string)=>{const b=new Date(s);const n=new Date();return n.getFullYear()-b.getFullYear()-(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())?1:0)};
 const fresh=():Data=>({education:[{level:'ปริญญาตรี'}],languages:[{language:'ภาษาไทย'},{language:'ภาษาอังกฤษ'}],employment:[{}],references:[{},{}],files:[]});
 const date=(s:string)=>s?new Date(s).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'—';
-function Brand(){return <div className="brand"><span className="wordmark">rpm<span className="brand-dot">.</span></span><span className="brand-name">ROYAL<br/>PHUKET<br/>MARINA</span></div>}
+function Brand(){return <div className="brand"><img className="brand-logo" src="/royal-phuket-marina-logo.png" alt="Royal Phuket Marina" width={198} height={66}/></div>}
 export default function Home(){
  const [view,setView]=useState('apply'),[step,setStep]=useState(0),[d,setD]=useState<Data>(fresh),[id,setId]=useState<string|null>(null),[apps,setApps]=useState<App[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[toast,setToast]=useState(''),[success,setSuccess]=useState(''),[query,setQuery]=useState(''),[filter,setFilter]=useState('All'),[selected,setSelected]=useState<App|null>(null),[policy,setPolicy]=useState(false),[mobile,setMobile]=useState(false),[lastSave,setLastSave]=useState(''),[hrNote,setHrNote]=useState(''),[hrStatus,setHrStatus]=useState('New');
  const form=useRef<HTMLFormElement>(null);const notify=(s:string)=>setToast(s);
