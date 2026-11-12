@@ -2,8 +2,7 @@ export type ApplicationData = Record<string, any>;
 export type ApplicationIssue = {step:number;path:string;message:string};
 export const requiredFields:Record<string,{step:number;label:string}> = Object.fromEntries([
  [0,'position','ตำแหน่งที่ต้องการ'],[0,'startDate','วันที่เริ่มงานได้'],[0,'salary','เงินเดือนที่ต้องการ'],[0,'nameTh','ชื่อ–นามสกุลภาษาไทย'],[0,'nameEn','ชื่อ–นามสกุลภาษาอังกฤษ'],[0,'gender','เพศ'],[0,'dob','วันเดือนปีเกิด'],[0,'nationality','สัญชาติ'],[0,'address','ที่อยู่ปัจจุบัน'],[0,'phone','โทรศัพท์'],[0,'email','อีเมล'],
- [1,'living','สถานภาพความเป็นอยู่'],[1,'marital','สถานภาพสมรส'],[1,'children','จำนวนบุตร'],[1,'childrenSchool','จำนวนบุตรที่กำลังศึกษา'],[1,'fatherStatus','สถานะบิดา'],[1,'motherStatus','สถานะมารดา'],[1,'military','สถานภาพทางทหาร'],
- [3,'computer','ทักษะคอมพิวเตอร์ (หากไม่มีให้ระบุว่าไม่มี)'],[3,'fax','การใช้โทรสาร'],[3,'typing','การพิมพ์ดีด (หากไม่มีให้ระบุว่าไม่มี)'],
+ [1,'living','สถานภาพความเป็นอยู่'],[1,'marital','สถานภาพสมรส'],[1,'fatherStatus','สถานะบิดา'],[1,'motherStatus','สถานะมารดา'],[1,'military','สถานภาพทางทหาร'],
  [5,'shift','การทำงานเป็นกะ'],[5,'guarantor','การจัดหาผู้ค้ำประกัน'],[5,'rotate','การหมุนเวียนตำแหน่ง'],[5,'emergency','ชื่อผู้ติดต่อฉุกเฉิน'],[5,'emergencyRelation','ความสัมพันธ์กับผู้ติดต่อฉุกเฉิน'],[5,'emergencyPhone','โทรศัพท์ผู้ติดต่อฉุกเฉิน'],[6,'signature','ชื่อผู้ยืนยันใบสมัคร']
 ].map(([step,key,label])=>[key,{step,label}])) as Record<string,{step:number;label:string}>;
 export const rowRules:Record<string,{step:number;label:string;fields:Record<string,string>}>={
@@ -15,7 +14,7 @@ export const rowRules:Record<string,{step:number;label:string;fields:Record<stri
 export function isRequiredField(key:string,d:ApplicationData){
  return !!requiredFields[key] || (['registered','spouseIncome','spouse'].includes(key)&&d.marital==='แต่งงาน') || (['spouseJob','spousePhone','spouseAddress'].includes(key)&&d.marital==='แต่งงาน'&&d.spouseIncome==='มี') || (['father','mother'].includes(key)&&['มีชีวิต','ถึงแก่กรรม'].includes(d[key+'Status'])) || (key==='relativeRelation'&&hasValue(d.relative)&&String(d.relative).trim()!=='ไม่มี');
 }
-export function isRequiredRowField(key:string,field:string,row:ApplicationData){return !!rowRules[key]?.fields[field] && !(key==='education'&&row.level==='ไม่ได้รับการศึกษาในระบบ'&&field!=='level');}
+export function isRequiredRowField(key:string,field:string,row:ApplicationData){return key!=='references' && !!rowRules[key]?.fields[field] && !(key==='education'&&row.level==='ไม่ได้รับการศึกษาในระบบ'&&field!=='level');}
 const hasValue=(v:unknown)=>typeof v==='number'?Number.isFinite(v):typeof v==='string'&&v.trim().length>0;
 const phoneOk=(v:unknown)=>typeof v==='string'&&/^\+?[0-9\s-]{9,15}$/.test(v.trim())&&v.replace(/\D/g,'').length>=9;
 const numeric=(v:unknown)=>hasValue(v)&&['number','string'].includes(typeof v)&&Number.isFinite(Number(v))&&Number(v)>=0;
@@ -28,11 +27,11 @@ export function validateApplication(data:unknown,onlyStep?:number):ApplicationIs
  for(const [key,r] of Object.entries(requiredFields)){need(r.step,key,r.label,d[key]);if(hasValue(d[key])&&!['salary','children','childrenSchool'].includes(key)&&typeof d[key]!=='string')add(r.step,key,'กรุณากรอก '+r.label+' เป็นข้อความ');}
  for(const k of ['registered','spouseIncome','spouse','spouseJob','spousePhone','spouseAddress','father','mother','relativeRelation'])if(isRequiredField(k,d))need(k==='relativeRelation'?5:1,k,({registered:'การจดทะเบียนสมรส',spouseIncome:'รายได้คู่สมรส',spouse:'ชื่อคู่สมรส',spouseJob:'อาชีพคู่สมรส',spousePhone:'โทรศัพท์คู่สมรส',spouseAddress:'สถานที่ทำงานคู่สมรส',father:'ชื่อบิดา',mother:'ชื่อมารดา',relativeRelation:'ความสัมพันธ์กับคนรู้จักในบริษัท'} as Record<string,string>)[k],d[k]);
  const choices:Record<string,string[]>={gender:['ชาย','หญิง','อื่น ๆ','ไม่ประสงค์ระบุ'],living:['บ้านส่วนตัว','บ้านเช่า','อยู่กับผู้ปกครอง','อยู่กับผู้อื่น'],marital:['โสด','แต่งงาน','หย่า','หม้าย','แยกกันอยู่'],fatherStatus:['มีชีวิต','ถึงแก่กรรม','ไม่ทราบ / ไม่สะดวกให้ข้อมูล'],motherStatus:['มีชีวิต','ถึงแก่กรรม','ไม่ทราบ / ไม่สะดวกให้ข้อมูล'],military:['ได้รับการยกเว้น','ศึกษาวิชาทหาร','ผ่านการเกณฑ์ทหาร','อื่น ๆ','ไม่เกี่ยวข้อง'],fax:['ใช้งานได้','ใช้งานไม่ได้'],shift:['ได้','ไม่ได้'],guarantor:['ได้','ไม่ได้'],rotate:['ได้','ไม่ได้']};
- for(const [key,options] of Object.entries(choices))if(hasValue(d[key])&&!options.includes(d[key]))add(requiredFields[key].step,key,'กรุณาเลือก '+requiredFields[key].label+' จากตัวเลือก');
+ for(const [key,options] of Object.entries(choices))if(hasValue(d[key])&&!options.includes(d[key]))add(requiredFields[key]?.step??3,key,'กรุณาเลือก '+(requiredFields[key]?.label??'การใช้โทรสาร')+' จากตัวเลือก');
  if(d.marital==='แต่งงาน'){for(const [key,options] of Object.entries({registered:['จดทะเบียน','ไม่ได้จดทะเบียน'],spouseIncome:['มี','ไม่มี']}))if(hasValue(d[key])&&!options.includes(d[key]))add(1,key,'กรุณาเลือกข้อมูลคู่สมรสจากตัวเลือก');}
  for(const [key,r] of Object.entries(rowRules)){
   if(key==='employment'&&d.noExperience===true)continue;
-  const rows=d[key];if(!Array.isArray(rows)||!rows.length){add(r.step,key,key==='employment'?'กรุณาเพิ่มประสบการณ์ทำงาน หรือเลือกว่ายังไม่มีประสบการณ์ทำงาน':'กรุณาเพิ่ม'+r.label+'อย่างน้อย 1 รายการ');continue;}
+  const rows=d[key];if(key==='references'&&(!Array.isArray(rows)||!rows.length))continue;if(!Array.isArray(rows)||!rows.length){add(r.step,key,key==='employment'?'กรุณาเพิ่มประสบการณ์ทำงาน หรือเลือกว่ายังไม่มีประสบการณ์ทำงาน':'กรุณาเพิ่ม'+r.label+'อย่างน้อย 1 รายการ');continue;}
   if(rows.length>(key==='references'?2:key==='languages'?6:8))add(r.step,key,'จำนวนรายการ'+r.label+'เกินที่กำหนด');
   rows.forEach((raw:unknown,i:number)=>{
    const row:ApplicationData=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};const prefix=key+'.'+i+'.';

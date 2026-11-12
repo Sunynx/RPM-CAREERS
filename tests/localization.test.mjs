@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createElement} from 'react';
+import {build} from 'esbuild';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const dir=await mkdtemp(join(tmpdir(),'rpm-language-'));
+await build({entryPoints:['lib/localize.ts'],bundle:true,platform:'node',format:'esm',outfile:join(dir,'localize.mjs')});
+const {localize,translateText}=await import(pathToFileURL(join(dir,'localize.mjs')));
+test('Thai view retains the original tree',()=>{const node=createElement('label',{},'จำนวนบุตร');assert.equal(localize(node,'th'),node);});
+test('English translates labels and placeholders without changing entered values',()=>{const onChange=()=>{};const result=localize(createElement('input',{placeholder:'ชื่อเล่นของคุณ',value:'ชื่อเดิม',onChange}),'en');assert.equal(result.props.placeholder,'Your nickname');assert.equal(result.props.value,'ชื่อเดิม');assert.equal(result.props.onChange,onChange);});
+test('English option label keeps its original canonical value for validation',()=>{const result=localize(createElement('option',{},'โสด'),'en');assert.equal(result.props.children,'Single');assert.equal(result.props.value,'โสด');const explicit=localize(createElement('option',{value:'New'},'ใบสมัครใหม่'),'en');assert.equal(explicit.props.value,'New');assert.equal(explicit.props.children,'New application');});
+test('labels inside fragments and arrays are translated',()=>{const result=localize(createElement('div',{},['จำนวนบุตร','ความสามารถพิเศษ (ไม่บังคับ)','บุคคลอ้างอิง (ไม่บังคับ)']),'en');assert.deepEqual(result.props.children,['Number of children','Special abilities (optional)','References (optional)']);});
+test('reference wording has an English translation and optional sections stay optional',()=>{assert.equal(translateText('บุคคลที่ไม่ใช้ญาติซึ่งทราบประวัติของท่านและบริษัทฯสามารถสอบถามได้'),'Persons other than relatives who know your background and whom the company may contact for reference.');assert.equal(translateText('ข้อมูลบุตร (ไม่บังคับ)'),'Children (optional)');});
+test('dynamic select prompts and mobile table labels translate',()=>{assert.equal(translateText('เลือกสถานภาพสมรส'),'Select Marital status');const td=localize(createElement('td',{'data-label':'ผู้สมัคร'},'ทดสอบ'),'en');assert.equal(td.props['data-label'],'Applicant');});
+test.after(async()=>await rm(dir,{recursive:true,force:true}));

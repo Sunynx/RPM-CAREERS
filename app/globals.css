@@ -99,3 +99,5 @@ footer .brand{opacity:1}footer .brand-logo{width:150px;height:50px}.review-title
 .repeater[aria-invalid=true]{border:1px solid #b8483e;border-radius:6px;padding:12px;background:#fffafa}
 
 .additional-fields h3{font-size:1rem;font-weight:500;margin-bottom:12px;overflow-wrap:anywhere}.additional-fields h3 span{display:inline-block;font-size:.875rem;font-weight:400;color:var(--muted);margin-left:8px}.test-fill-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}.test-fill-toolbar>span{font-size:.875rem;color:var(--muted);overflow-wrap:anywhere}
+.language-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;flex-shrink:0;padding:8px 12px;color:var(--navy);background:var(--navy-light);border:1px solid var(--line);border-radius:6px;font-size:.875rem}.language-toggle:hover{background:#dfe7f3}
+@media(max-width:820px){.header-inner nav{order:3}.language-toggle{margin-left:auto}.header-inner>.brand{margin-right:auto}}
