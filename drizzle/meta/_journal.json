@@ -15,6 +15,13 @@
       "when": 1794467601739,
       "tag": "0001_flippant_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794468474336,
+      "tag": "0002_glamorous_thor",
+      "breakpoints": true
     }
   ]
 }

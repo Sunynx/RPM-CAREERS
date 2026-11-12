@@ -8,3 +8,9 @@ export const jobs = sqliteTable('jobs', {
 export const homepageContent = sqliteTable('homepage_content', {
  id: text('id').primaryKey(), data: text('data').notNull(), updated: text('updated').notNull()
 });
+export const applicationOwners = sqliteTable('application_owners', {
+ applicationId:text('application_id').primaryKey(), ownerHash:text('owner_hash').notNull()
+});
+export const fileOwners = sqliteTable('file_owners', {
+ fileKey:text('file_key').primaryKey(), ownerHash:text('owner_hash').notNull()
+});

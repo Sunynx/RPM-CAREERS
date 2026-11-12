@@ -314,5 +314,7 @@
   "บันทึกการพิจารณา": "Save review",
   "เปลี่ยนเป็นภาษาไทย": "Switch to Thai",
   "หน้าแรก": "Home",
-  "จัดการหน้าแรก / ตำแหน่งงาน": "Manage homepage / Positions"
+  "จัดการหน้าแรก / ตำแหน่งงาน": "Manage homepage / Positions",
+  "ได้รับใบสมัครของคุณแล้ว ทีม HR จะพิจารณาและติดต่อกลับตามช่องทางที่แจ้งไว้": "Your application has been received. HR will review it and contact you using the details provided.",
+  "ออกจากระบบ": "Sign out"
 }
