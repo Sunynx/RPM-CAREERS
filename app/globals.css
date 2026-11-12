@@ -108,3 +108,16 @@ footer .brand{opacity:1}footer .brand-logo{width:150px;height:50px}.review-title
 
 .hr-header .header-inner{flex-wrap:wrap;height:auto;padding-top:14px;padding-bottom:0;row-gap:8px}.hr-header .header-inner nav{order:3;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;height:auto;min-height:56px;margin:0;gap:12px}.hr-header .header-inner nav button{justify-content:center;min-height:56px;max-width:none;overflow-wrap:anywhere}.hr-header .language-toggle{margin-left:auto}.hr-header .header-divider,.hr-header .portal-name,.hr-header .private-tag{display:none}
 @media(max-width:700px){.hr-header .header-inner nav{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10px}.hr-header .header-inner nav button{font-size:.875rem;min-height:48px}.hr-header .header-inner>.secondary{font-size:.875rem;padding:8px}.hr-header .brand-logo{width:160px;height:auto}.hr-header .header-inner{padding-left:14px;padding-right:14px}}
+
+/* Give the photograph picker a full row instead of a narrow sidebar. */
+.personal-top{grid-template-columns:minmax(0,1fr)}
+.photo-upload{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;justify-content:stretch;text-align:left;width:100%;max-width:100%;height:auto;min-height:144px;margin-top:0;padding:24px;gap:20px;border-radius:10px;background:#f8faff}
+.photo-upload .upload-avatar{width:56px;height:56px;margin:0;flex-shrink:0}
+.photo-upload img{display:block;width:64px;height:84px;object-fit:contain;border-radius:6px;background:#fff}
+.photo-copy{min-width:0;display:flex;flex-direction:column;gap:4px;line-height:1.6}
+.photo-copy b{font-size:1rem;font-weight:500;color:var(--ink);overflow-wrap:anywhere}
+.photo-copy span{display:block;font-size:.875rem;color:var(--muted)}
+.photo-upload .photo-action{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;padding:11px 16px;min-height:44px;max-width:100%;font-size:.9375rem;line-height:1.5;color:var(--navy);border:1px solid #cad5e5;border-radius:6px;background:#fff;white-space:normal;overflow-wrap:anywhere}
+.photo-upload .photo-action svg{flex-shrink:0}
+.photo-upload:focus-within{outline:2px solid var(--navy);outline-offset:3px}
+@media(max-width:600px){.photo-upload{grid-template-columns:48px minmax(0,1fr);padding:20px 16px;gap:16px;min-height:0}.photo-upload .upload-avatar{width:48px;height:48px}.photo-upload img{width:48px;height:64px}.photo-upload .photo-action{grid-column:1/-1;width:100%;min-height:46px}.photo-copy{gap:3px}}

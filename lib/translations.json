@@ -316,5 +316,8 @@
   "หน้าแรก": "Home",
   "จัดการหน้าแรก / ตำแหน่งงาน": "Manage homepage / Positions",
   "ได้รับใบสมัครของคุณแล้ว ทีม HR จะพิจารณาและติดต่อกลับตามช่องทางที่แจ้งไว้": "Your application has been received. HR will review it and contact you using the details provided.",
-  "ออกจากระบบ": "Sign out"
+  "ออกจากระบบ": "Sign out",
+  "รูปถ่ายผู้สมัคร": "Applicant photograph",
+  "เปลี่ยนรูปถ่าย": "Change photograph",
+  "ขนาดไม่เกิน 5 MB": "Maximum file size: 5 MB"
 }
