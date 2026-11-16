@@ -1,3 +1,4 @@
+import {receiptMessage} from '@/lib/receipt-template';
 import {env} from 'cloudflare:workers';
 import {authConfig} from '@/lib/microsoft-auth';
 import {getM365Secret} from '@/lib/m365-secret';
@@ -14,7 +15,10 @@ export async function sendMicrosoftTestMail(recipient:string){
   const token=await tokenResponse.json() as {access_token?:string};
   if(!token.access_token)return {status:502,data:{error:'Microsoft ไม่ได้ส่ง access token กลับมา กรุณาตรวจข้อมูลแอป'}};
   sendStarted=true;
-  const response=await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,{method:'POST',headers:{Authorization:`Bearer ${token.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({message:{subject:'RPM Careers — Microsoft 365 test email',body:{contentType:'Text',content:`อีเมลทดสอบจาก RPM Careers / Microsoft 365 test email\n\nผู้ดูแลระบบเป็นผู้สั่งส่งอีเมลนี้เพื่อทดสอบสิทธิ์ส่งจาก mailbox ${sender}\nThis is a test email requested by your administrator. No application was submitted.\n\nเวลา / Time: ${new Date().toISOString()}`},toRecipients:[{emailAddress:{address:recipient}}]},saveToSentItems:true}),signal:AbortSignal.timeout(10000)});
+  const message=receiptMessage({email:recipient,name:'ผู้สมัครทดสอบ',nameEn:'Test Applicant',position:'ตำแหน่งตัวอย่าง / Sample position',language:'th',applicationId:'TEST-'+new Date().toISOString().slice(0,10)});
+  message.subject='[TEST] '+message.subject;
+  message.body.content=message.body.content.replace('</div><table','</div><p style="margin:0;padding:16px;text-align:center;background-color:#fff3cd;color:#664d03;font-family:Tahoma,Arial,sans-serif">อีเมลทดสอบเท่านั้น ไม่มีการส่งใบสมัครจริง / Test email only. No application was submitted.</p><table');
+  const response=await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,{method:'POST',headers:{Authorization:`Bearer ${token.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({message,saveToSentItems:true}),signal:AbortSignal.timeout(10000)});
   if(response.status===202)return {status:200,data:{accepted:true,message:'Microsoft รับคำขอส่งอีเมลแล้ว (202 Accepted) กรุณาตรวจ Inbox/Junk ของผู้รับและ Sent Items ของผู้ส่ง ยังไม่ใช่การยืนยันว่าอีเมลถึง Inbox'}};
   // Only return a bounded error code, never raw provider content, credentials, or tokens.
   let code='';try{const body=await response.json() as {error?:{code?:unknown}};if(typeof body.error?.code==='string'&&/^[a-zA-Z0-9_.-]{1,100}$/.test(body.error.code))code=body.error.code;}catch{}

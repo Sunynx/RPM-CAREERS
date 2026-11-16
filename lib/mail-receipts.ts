@@ -1,3 +1,4 @@
+import {receiptMessage} from '@/lib/receipt-template';
 import {getM365Secret} from '@/lib/m365-secret';
 import {env} from 'cloudflare:workers';
 type Settings={M365_TENANT_ID?:string;M365_CLIENT_ID?:string;M365_CLIENT_SECRET?:string;M365_SENDER_EMAIL?:string;M365_RECEIPT_ENABLED?:string};
@@ -7,13 +8,10 @@ export async function receiptSettings(){
  if(!await getM365Secret())missing.push('M365_CLIENT_SECRET');
  return {enabled:e.M365_RECEIPT_ENABLED==='true',ready:e.M365_RECEIPT_ENABLED==='true'&&!missing.length,missing,sender:e.M365_SENDER_EMAIL||''};
 }
-export function receiptMessage(payload:{email:string;name:string;position:string;language:'th'|'en';applicationId:string}){
- const en=payload.language==='en';
- return {subject:en?'Thank you for applying to Royal Phuket Marina':'ขอบคุณที่สมัครงานกับ Royal Phuket Marina',body:{contentType:'Text',content:en?`Dear ${payload.name},\n\nThank you for applying for the ${payload.position} position at Royal Phuket Marina. We have received your application. Our team will review it and contact you if your qualifications match the position.\n\nApplication number: ${payload.applicationId}\n\nThank you for your interest.\nRoyal Phuket Marina`:`เรียน คุณ ${payload.name}\n\nขอบคุณที่สนใจสมัครงานตำแหน่ง ${payload.position} กับ Royal Phuket Marina บริษัทได้รับใบสมัครของท่านแล้ว ทีมงานจะพิจารณาข้อมูลและติดต่อกลับหากคุณสมบัติตรงกับตำแหน่งงาน\n\nเลขที่ใบสมัคร: ${payload.applicationId}\n\nขอบคุณสำหรับความสนใจที่มีต่อบริษัท\nRoyal Phuket Marina`},toRecipients:[{emailAddress:{address:payload.email}}]};
-}
+export {receiptMessage} from '@/lib/receipt-template';
 export async function receiptStatement(applicationId:string,data:Record<string,any>,now:string){
  if(!(await receiptSettings()).ready)return null;
- const payload={applicationId,email:data.email.trim(),name:data.nameTh.trim(),position:data.position.trim(),language:data.applicationLanguage==='en'?'en':'th'};
+ const payload={applicationId,email:data.email.trim(),name:data.nameTh.trim(),nameEn:typeof data.nameEn==='string'?data.nameEn.trim():'',position:data.position.trim(),language:data.applicationLanguage==='en'?'en':'th'};
  return env.DB!.prepare('INSERT INTO mail_receipts (id,application_id,payload,status,attempts,error,created,updated) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING').bind('receipt:'+applicationId,applicationId,JSON.stringify(payload),'pending','0','',now,now);
 }
 async function setResult(id:string,status:string,error=''){await env.DB!.prepare('UPDATE mail_receipts SET status=?,error=?,updated=? WHERE id=?').bind(status,error,new Date().toISOString(),id).run();return status;}
