@@ -121,3 +121,5 @@ footer .brand{opacity:1}footer .brand-logo{width:150px;height:50px}.review-title
 .photo-upload .photo-action svg{flex-shrink:0}
 .photo-upload:focus-within{outline:2px solid var(--navy);outline-offset:3px}
 @media(max-width:600px){.photo-upload{grid-template-columns:48px minmax(0,1fr);padding:20px 16px;gap:16px;min-height:0}.photo-upload .upload-avatar{width:48px;height:48px}.photo-upload img{width:48px;height:64px}.photo-upload .photo-action{grid-column:1/-1;width:100%;min-height:46px}.photo-copy{gap:3px}}
+
+.receipt-panel{background:#fff;border:1px solid var(--line);border-radius:9px;padding:22px;margin-bottom:24px;overflow-wrap:anywhere}.receipt-panel h2{font-size:1.1rem;font-weight:550;margin-bottom:10px}.receipt-panel p{color:var(--muted);font-size:.9375rem;margin:5px 0}.receipt-list{margin-top:15px}.receipt-row{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:.875rem}.receipt-row>span{min-width:0;overflow-wrap:anywhere}.receipt-row .secondary{margin-left:auto}

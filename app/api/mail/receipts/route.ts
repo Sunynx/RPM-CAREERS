@@ -1,0 +1,7 @@
+import {env} from 'cloudflare:workers';
+import {canManageCareers} from '@/lib/hr-auth';
+import {receiptSettings,processReceipt} from '@/lib/mail-receipts';
+export const dynamic='force-dynamic';
+const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
+export async function GET(){if(!await canManageCareers())return json({error:'Forbidden'},403);const settings=await receiptSettings();try{const result=await env.DB!.prepare('SELECT id,application_id,status,attempts,error,created,updated FROM mail_receipts ORDER BY created DESC LIMIT 100').all();return json({settings,receipts:result.results});}catch{return json({error:'Unable to load receipts'},500)}}
+export async function POST(req:Request){if(!await canManageCareers()||req.headers.get('origin')!==new URL(req.url).origin)return json({error:'Forbidden'},403);if(!(await receiptSettings()).ready)return json({error:'Microsoft 365 is not configured'},503);try{const body=await req.json() as {id?:string};if(typeof body.id!=='string'||!body.id.startsWith('receipt:'))return json({error:'Invalid receipt'},400);const row=await env.DB!.prepare('SELECT status FROM mail_receipts WHERE id=?').bind(body.id).first<{status:string}>();if(!row)return json({error:'Not found'},404);if(!['pending','failed'].includes(row.status))return json({error:'This receipt cannot be retried automatically'},409);return json({status:await processReceipt(body.id)});}catch{return json({error:'Unable to process receipt'},500)}}

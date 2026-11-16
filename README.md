@@ -142,3 +142,27 @@ The portable build runs Vinext directly without a host `timeout` command. The ma
 - Company introduction is based on https://www.royalphuketmarina.com/ and can be maintained by HR.
 
 Applicant drafts and attachments are scoped to a private HttpOnly browser session; HR uses the existing Sites sign-in and server-side allowlist. Legacy records remain accessible to authorized HR. Microsoft 365 integration is planned only; no Graph uploads or emails are enabled.
+
+## Microsoft 365 HR sign-in and acknowledgment email
+
+The Microsoft flows are implemented but remain disabled until tenant configuration and mailbox permissions are supplied. Applicants still do not sign in. No previous applications are backfilled for email receipts.
+
+App registration: single tenant, Web redirect URI `https://rpm-careers-online.glisteningcashew2.chatgpt.site/api/auth/microsoft/callback`. HR uses authorization code flow with PKCE/state/nonce and validated Microsoft ID tokens. Enter the **user Object IDs** of authorized HR accounts in `HR_ADMIN_OBJECT_IDS`; signing in with another account in the same tenant is insufficient. Client ID and Directory ID are not secrets. Client secret **Value** must go only into protected runtime configuration or the protected `/hr/settings` password field, never chat or source. The settings page encrypts the secret with AES-GCM using a key derived from `HR_SESSION_SECRET` before writing it to D1. Metadata APIs never return the secret or its ciphertext. Only the existing authorized setup owner or Microsoft Object IDs in `M365_SETUP_OBJECT_IDS` may change it.
+
+Runtime configuration:
+
+- `M365_TENANT_ID`, `M365_CLIENT_ID`
+- `M365_CLIENT_SECRET` (secret)
+- `HR_SESSION_SECRET` (secret, random, at least 32 characters)
+- `HR_ADMIN_OBJECT_IDS` (comma-separated Entra **user** Object IDs)
+- `HR_AUTH_PROVIDER=microsoft` (switch only after the Microsoft settings are tested; leaving it unset preserves the existing Sites/ChatGPT access)
+- `M365_SENDER_EMAIL=itsupport@royalphuketmarina.com`
+- `M365_RECEIPT_ENABLED=true` (switch only after mailbox authorization is complete; default false)
+
+Use Exchange Online Application RBAC to scope role `Application Mail.Send` to the sender mailbox. Register the Entra service principal in Exchange using its **Enterprise application Object ID** (not its App registration Object ID). Avoid combining scoped RBAC with an unscoped Microsoft Graph application `Mail.Send` grant: permissions can be additive. See https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac.
+
+Receipt work is inserted atomically with a successful new application submission. Draft saves and HR status updates do not send acknowledgment emails. Each receipt has a unique application-based key. A Graph 202 response is recorded as `accepted` rather than claiming inbox delivery. Token/rejected-send failures allow up to 3 explicit attempts by authorized HR. Network uncertainty after send starts becomes `unknown` and is never automatically resent; check Sent Items first. The HR dashboard displays readiness and recent receipt states. The system never logs client secrets or access tokens.
+
+The public application endpoint returns only session-owned data and omits all internal HR notes. HR must explicitly request `scope=hr` through the protected backstage UI; requesting this scope without authorization returns 403.
+
+`/hr/settings` is the IT-only Microsoft configuration page. Save Client Secret Value there, then test app credentials without sending email. `HR_SESSION_SECRET` protects both sessions and encrypted integration storage; rotating it requires re-entering the Microsoft secret. Keep a protected backup/rotation plan. The public application endpoints never expose integration configuration.

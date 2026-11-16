@@ -1,0 +1,16 @@
+import {getM365Secret} from '@/lib/m365-secret';
+import {env} from 'cloudflare:workers';
+import {SignJWT,jwtVerify,createRemoteJWKSet,base64url} from 'jose';
+export const HR_COOKIE='__Host-rpm_hr';
+export const FLOW_COOKIE='__Host-rpm_ms_flow';
+type AuthEnv={HR_AUTH_PROVIDER?:string;M365_TENANT_ID?:string;M365_CLIENT_ID?:string;M365_CLIENT_SECRET?:string;HR_SESSION_SECRET?:string;HR_ADMIN_OBJECT_IDS?:string};
+export function authConfig(){const e=env as unknown as AuthEnv;return {microsoft:e.HR_AUTH_PROVIDER==='microsoft',tenant:(e.M365_TENANT_ID||'').trim().toLowerCase(),client:(e.M365_CLIENT_ID||'').trim().toLowerCase(),secret:e.M365_CLIENT_SECRET||'',sessionSecret:e.HR_SESSION_SECRET||'',admins:(e.HR_ADMIN_OBJECT_IDS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean)};}
+export async function authReady(){const c=authConfig();return /^[0-9a-f-]{36}$/i.test(c.tenant)&&/^[0-9a-f-]{36}$/i.test(c.client)&&!!await getM365Secret()&&c.sessionSecret.length>=32;}
+export function cookieValue(raw:string|null,name:string){return (raw||'').split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||null;}
+export function authCookie(name:string,value:string,maxAge:number){return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;}
+export function randomToken(){return base64url.encode(crypto.getRandomValues(new Uint8Array(32)));}
+export async function signAuth(payload:Record<string,unknown>,audience:string,seconds:number){const c=authConfig();if(c.sessionSecret.length<32)throw Error('Authentication not configured');return new SignJWT(payload).setProtectedHeader({alg:'HS256'}).setIssuer('rpm-careers').setAudience(audience).setIssuedAt().setExpirationTime(Math.floor(Date.now()/1000)+seconds).sign(new TextEncoder().encode(c.sessionSecret));}
+export async function verifyAuth(token:string,audience:string){const c=authConfig();if(c.sessionSecret.length<32)throw Error('Authentication not configured');return (await jwtVerify(token,new TextEncoder().encode(c.sessionSecret),{algorithms:['HS256'],issuer:'rpm-careers',audience})).payload;}
+const keySets=new Map<string,ReturnType<typeof createRemoteJWKSet>>();
+export async function verifyMicrosoftIdToken(token:string,nonce:string){const c=authConfig();if(!await authReady())throw Error('Authentication not configured');let keys=keySets.get(c.tenant);if(!keys){keys=createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${c.tenant}/discovery/v2.0/keys`));keySets.set(c.tenant,keys);}const {payload}=await jwtVerify(token,keys,{algorithms:['RS256'],issuer:`https://login.microsoftonline.com/${c.tenant}/v2.0`,audience:c.client});if(payload.nonce!==nonce||payload.tid!==c.tenant||typeof payload.oid!=='string'||!payload.oid)throw Error('Invalid identity token');return payload;}
+export async function microsoftUser(rawCookies:string|null){try{if(!authConfig().microsoft||!await authReady())return null;const token=cookieValue(rawCookies,HR_COOKIE);if(!token)return null;const p=await verifyAuth(token,'rpm-hr-session');if(p.tid!==authConfig().tenant||typeof p.oid!=='string')return null;return {userId:p.oid,email:typeof p.email==='string'?p.email:'',displayName:typeof p.name==='string'?p.name:'HR',provider:'microsoft' as const};}catch{return null;}}

@@ -1,0 +1,11 @@
+'use client';
+import {useEffect,useState} from 'react';
+type Receipt={id:string;application_id:string;status:string;attempts:string;error:string};
+export function MailReceipts({language}:{language:'th'|'en'}){
+ const t=(th:string,en:string)=>language==='en'?en:th;
+ const [data,setData]=useState<{settings:{ready:boolean;enabled:boolean;sender:string};receipts:Receipt[]}|null>(null),[error,setError]=useState(false),[busy,setBusy]=useState(false);
+ async function load(){try{const r=await fetch('/api/mail/receipts');if(!r.ok)throw Error();setData(await r.json() as any);setError(false);}catch{setError(true);}}
+ useEffect(()=>{load()},[]);
+ const labels:Record<string,string>={pending:t('รอส่ง','Pending'),sending:t('กำลังดำเนินการ — ห้ามส่งซ้ำ','Processing — do not resend'),accepted:t('Microsoft 365 รับคำขอแล้ว','Accepted by Microsoft 365'),failed:t('ส่งไม่สำเร็จ','Failed'),unknown:t('ยังไม่ทราบผล — ตรวจ Sent Items ก่อน','Outcome unknown — check Sent Items first')};
+ return <section className="receipt-panel"><h2>{t('อีเมลขอบคุณหลังส่งใบสมัคร','Application acknowledgment email')}</h2>{error?<p role="alert">{t('โหลดสถานะอีเมลไม่สำเร็จ','Unable to load email status')} <button className="text-link" onClick={load}>{t('ลองใหม่','Try again')}</button></p>:!data?<p>{t('กำลังโหลด…','Loading…')}</p>:<><p>{t('ผู้ส่ง: ','Sender: ')}<strong>{data.settings.sender||'—'}</strong></p><p>{data.settings.ready?t('เปิดใช้งานสำหรับใบสมัครใหม่แล้ว','Enabled for new applications'):t('ยังไม่เปิดส่งจริง — รอเชื่อมแอปและสิทธิ์ Microsoft 365','Not sending yet — Microsoft 365 app credentials and permissions are required')}</p>{data.receipts.length>0&&<div className="receipt-list">{data.receipts.slice(0,10).map(receipt=><div className="receipt-row" key={receipt.id}><span>{receipt.application_id}</span><span>{labels[receipt.status]||receipt.status}</span>{data.settings.ready&&['pending','failed'].includes(receipt.status)&&Number(receipt.attempts)<3&&<button className="secondary" disabled={busy} onClick={async()=>{setBusy(true);try{const r=await fetch('/api/mail/receipts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:receipt.id})});if(!r.ok)throw Error();await load();}catch{setError(true);}finally{setBusy(false);}}}>{t('ลองส่งอีกครั้ง','Retry')}</button>}</div>)}</div>}</>}</section>;
+}
