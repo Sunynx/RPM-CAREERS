@@ -323,5 +323,7 @@
   "แนบ Resume หรือ CV (จำเป็น) *": "Upload Resume or CV (required) *",
   "ต้องแนบอย่างน้อย 1 ไฟล์ · PDF, JPG, PNG · ไม่เกิน 5 MB ต่อไฟล์": "At least 1 file required · PDF, JPG, PNG · Maximum 5 MB per file",
   "พิมพ์รายละเอียด": "Print details",
-  "พิมพ์แบบฟอร์ม": "Print application form"
+  "พิมพ์แบบฟอร์ม": "Print application form",
+  "อัปเดตสถานะแล้ว": "Status updated.",
+  "เปลี่ยนสถานะไม่สำเร็จ กรุณาลองใหม่": "Unable to update status. Please try again."
 }
