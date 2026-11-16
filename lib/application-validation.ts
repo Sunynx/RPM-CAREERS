@@ -53,6 +53,7 @@ export function validateApplication(data:unknown,onlyStep?:number):ApplicationIs
  for(const k of ['startDate','dob'])if(hasValue(d[k])&&(!dateOk(d[k])||(k==='dob'&&d[k]>new Date().toISOString().slice(0,10))))add(0,k,k==='dob'?'กรุณาระบุวันเกิดที่ถูกต้องและไม่ใช่วันในอนาคต':'กรุณาระบุวันที่เริ่มงานให้ถูกต้อง');
  for(const [k,step] of [['salary',0],['children',1],['childrenSchool',1]] as const)if(hasValue(d[k])&&(!numeric(d[k])||(k!=='salary'&&!Number.isInteger(Number(d[k])))))add(step,k,'กรุณากรอกตัวเลขตั้งแต่ 0 ขึ้นไป'+(k!=='salary'?' โดยไม่มีทศนิยม':''));
  if(numeric(d.children)&&numeric(d.childrenSchool)&&Number(d.childrenSchool)>Number(d.children))add(1,'childrenSchool','จำนวนบุตรที่กำลังศึกษาต้องไม่เกินจำนวนบุตรทั้งหมด');
+ if(!Array.isArray(d.files)||!d.files.some((f:any)=>f&&typeof f.key==='string'&&/^[a-f0-9-]{36}$/i.test(f.key)&&typeof f.name==='string'&&f.name.trim()&&['application/pdf','image/jpeg','image/png'].includes(f.type)&&Number.isFinite(f.size)&&f.size>0&&f.size<=5*1024*1024))add(6,'files','กรุณาแนบ Resume หรือ CV อย่างน้อย 1 ไฟล์ / Please upload a Resume or CV');
  if(d.certify!==true)add(6,'certify','กรุณารับรองความถูกต้องของข้อมูล');
  if(d.acknowledge!==true)add(6,'acknowledge','กรุณายืนยันการรับทราบการใช้ข้อมูล');
  if(['race','religion','blood'].some(k=>hasValue(d[k]))&&d.sensitiveConsent!==true)add(6,'sensitiveConsent','กรุณายินยอมให้ใช้ข้อมูลอ่อนไหวที่เลือกกรอก หรือกลับไปลบข้อมูลดังกล่าว');
