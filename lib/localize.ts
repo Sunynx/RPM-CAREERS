@@ -10,7 +10,7 @@ export function translateText(text:string):string{
 export function localize(node:ReactNode,language:'th'|'en'):ReactNode{
  if(language==='th')return node;
  if(typeof node==='string')return translateText(node);
- if(Array.isArray(node))return node.map(child=>localize(child,language));
+ if(Array.isArray(node))return node.map((child,index)=>{const translated=localize(child,language);return isValidElement(translated)&&translated.key===null?cloneElement(translated,{key:index}):translated;});
  if(!isValidElement(node))return node;
  const element=node as ReactElement<Record<string,any>>;const original=element.props;
  if(original.translate==='no')return node;

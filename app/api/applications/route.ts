@@ -5,7 +5,16 @@ import {validateApplication} from '@/lib/application-validation';
 export const dynamic='force-dynamic';
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const statuses=['Draft','New','Review','Interview','Offered','Rejected'];
-export async function GET(req:Request){try{let results:any[];if(await canManageCareers()){results=(await env.DB!.prepare('SELECT * FROM applications ORDER BY updated DESC').all()).results;}else{const session=await applicantSession(req);if(!session.hash)return json([]);results=(await env.DB!.prepare('SELECT a.* FROM applications a JOIN application_owners o ON a.id=o.application_id WHERE o.owner_hash=? ORDER BY a.updated DESC').bind(session.hash).all()).results;}return json(results.map((x:any)=>({...x,data:JSON.parse(x.data)})))}catch{return json({error:'ไม่สามารถโหลดใบสมัครได้ กรุณาลองใหม่'},500)}}
+export async function GET(req:Request){try{
+ if(new URL(req.url).searchParams.get('scope')==='hr'){
+  if(!await canManageCareers())return json({error:'Forbidden'},403);
+  const r=await env.DB!.prepare('SELECT * FROM applications ORDER BY updated DESC').all();
+  return json(r.results.map((x:any)=>({...x,data:JSON.parse(x.data)})));
+ }
+ const session=await applicantSession(req);if(!session.hash)return json([]);
+ const r=await env.DB!.prepare('SELECT a.id,a.status,a.data,a.created,a.updated FROM applications a JOIN application_owners o ON a.id=o.application_id WHERE o.owner_hash=? ORDER BY a.updated DESC').bind(session.hash).all();
+ return json(r.results.map((x:any)=>({id:x.id,status:x.status,data:JSON.parse(x.data),created:x.created,updated:x.updated})));
+}catch{return json({error:'ไม่สามารถโหลดใบสมัครได้ กรุณาลองใหม่'},500)}}
 export async function POST(req:Request){
  if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)return json({error:'Forbidden'},403);
  try{const b=await req.json() as any; if(!b.data||typeof b.data!=='object'||Array.isArray(b.data)||JSON.stringify(b.data).length>160000)return json({error:'ข้อมูลไม่ถูกต้อง'},400);
