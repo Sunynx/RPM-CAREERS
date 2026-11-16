@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {readFile,mkdir,rm} from 'node:fs/promises';
+import {PDFDocument} from 'pdf-lib';
+await mkdir('work/pdf-tests',{recursive:true});
+await build({entryPoints:['lib/application-pdf.ts'],bundle:true,platform:'node',format:'esm',external:['pdf-lib','@pdf-lib/fontkit'],outfile:'work/pdf-tests/export.mjs'});
+const {generateApplicationPdf}=await import('../work/pdf-tests/export.mjs');
+const loader=async path=>{const bytes=await readFile('public'+path);return bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);};
+test('PDF uses the supplied company template and includes a continuation for online-only fields',async()=>{const bytes=await generateApplicationPdf({id:'261116-A3F2',data:{nameTh:'สมชาย ทดสอบ',nameEn:'Somchai Test',position:'Marina',salary:'20000',emergency:'ผู้ติดต่อฉุกเฉิน',note:'PRIVATE HR NOTE'}},loader);const pdf=await PDFDocument.load(bytes);assert.equal(pdf.getTitle(),'Application 261116-A3F2 — Royal Phuket Marina');assert.equal(pdf.getPageCount(),3);assert.equal(pdf.getPage(0).getWidth(),612);assert.equal(pdf.getPage(0).getHeight(),1008);});
+test('long values and extra rows continue across pages without dropping the remaining content',async()=>{const rows=Array.from({length:10},(_,i)=>({company:'Company '+i,position:'Marina',responsibility:'ข้อความหน้าที่รับผิดชอบเพิ่มเติม '.repeat(60)}));const bytes=await generateApplicationPdf({id:'261116-LONG',data:{employment:rows,emergency:'ชื่อผู้ติดต่อ '.repeat(150)}},loader);assert.ok((await PDFDocument.load(bytes)).getPageCount()>3);});
+test('missing protected photo does not prevent exporting the applicant form',async()=>{let attempted=false;const bytes=await generateApplicationPdf({id:'261116-PHOTO',data:{photo:{key:'11111111-1111-4111-8111-111111111111',type:'image/jpeg'}}},async path=>{if(path.startsWith('/api/files')){attempted=true;throw Error('Not authorized or missing');}return loader(path);});assert.equal(attempted,true);assert.equal((await PDFDocument.load(bytes)).getPageCount(),3);});
+test.after(async()=>rm('work/pdf-tests',{recursive:true,force:true}));
