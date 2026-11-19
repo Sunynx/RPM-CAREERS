@@ -12,7 +12,7 @@ const cleanFields=(fields:Record<string,unknown>)=>Object.fromEntries(Object.ent
 const safeJson=(value:unknown)=>JSON.stringify(value??null);
 const odata=(value:string)=>value.replaceAll("'","''");
 const pathPart=(value:string)=>encodeURIComponent(value.replace(/[~"#%&*:<>?/\\{|}]/g,'-').replace(/[. ]+$/g,'').slice(0,120)||'file');
-const salaryRange=(value:unknown)=>{const text=String(value??'').trim();if(['ตามตกลง','ตามประสบการณ์','12,000–15,000 บาท','15,000–20,000 บาท','20,000–25,000 บาท','25,000–30,000 บาท','30,000–35,000 บาท','35,000–40,000 บาท','40,000–45,000 บาท','45,000–50,000 บาท','50,000 บาทขึ้นไป'].includes(text))return text;const amount=Number(text.replaceAll(',',''));if(!Number.isFinite(amount))return 'ตามประสบการณ์';if(amount<15000)return '12,000–15,000 บาท';if(amount<20000)return '15,000–20,000 บาท';if(amount<25000)return '20,000–25,000 บาท';if(amount<30000)return '25,000–30,000 บาท';if(amount<35000)return '30,000–35,000 บาท';if(amount<40000)return '35,000–40,000 บาท';if(amount<45000)return '40,000–45,000 บาท';if(amount<50000)return '45,000–50,000 บาท';return '50,000 บาทขึ้นไป';};
+const salaryAmount=(value:unknown)=>{const text=String(value??'').trim();if(!/^\d[\d,]*(?:\.\d+)?$/.test(text))return undefined;const amount=Number(text.replaceAll(',',''));return Number.isFinite(amount)?amount:undefined;};
 
 async function context():Promise<SyncContext>{
  const token=await sharePointToken();
@@ -20,6 +20,9 @@ async function context():Promise<SyncContext>{
  const response=await sharePointGraph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
  const lists:Record<string,string>={};for(const list of response.value){const name=String(list.displayName||list.name||'');if(name)lists[name]=list.id;}
  const missing=requiredLists.filter(name=>!lists[name]);if(missing.length)throw new GraphError(409,'SharePointSchemaMissing');
+ const applicationColumns=await sharePointGraph<{value:Array<{id:string;name?:string}>}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.Applications)}/columns?$select=id,name&$top=200`);
+ if(!applicationColumns.value.some(column=>column.name?.toLowerCase()==='expectedsalaryamount'))await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.Applications)}/columns`,{method:'POST',body:JSON.stringify({name:'ExpectedSalaryAmount',displayName:'เงินเดือนที่ต้องการ / Expected salary',number:{decimalPlaces:'none'}})});
+ const legacySalary=applicationColumns.value.find(column=>column.name?.toLowerCase()==='expectedsalary');if(legacySalary)await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.Applications)}/columns/${encodeURIComponent(legacySalary.id)}`,{method:'PATCH',body:JSON.stringify({displayName:'ช่วงเงินเดือนเดิม / Legacy salary range',hidden:true})});
  const drive=await sharePointGraph<{id:string}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.ApplicationDocuments)}/drive?$select=id`);
  return {token,siteId:site.id,lists,documentsDriveId:drive.id};
 }
@@ -71,7 +74,7 @@ function details(data:Record<string,any>){
 export async function syncApplicationToSharePoint(applicationId:string,data:Record<string,any>,submittedAt:string,origin:string){
  const ctx=await context(),year=String(new Date(submittedAt).getUTCFullYear());
  const retention=new Date(submittedAt);retention.setUTCFullYear(retention.getUTCFullYear()+2);
- await upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalary:salaryRange(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:'2026-11',AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)});
+ await upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalaryAmount:salaryAmount(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:'2026-11',AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)});
  await upsertItem(ctx,'ApplicationDetails','ApplicationKey',applicationId,{Title:applicationId,ApplicationKey:applicationId,SchemaVersion:1,...details(data)});
  const yearFolder=await ensureFolder(ctx,null,year);await ensureFolder(ctx,yearFolder.id,applicationId);
  for(const [index,file] of ((Array.isArray(data.files)?data.files:[]) as StoredFile[]).entries())await uploadStoredFile(ctx,applicationId,year,file,'Resume',index);

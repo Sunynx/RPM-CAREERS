@@ -23,7 +23,7 @@ const lists:ListDefinition[]=[
   dateTime('SubmittedAt','วันที่ส่งใบสมัคร / Submitted at',false,{required:true,indexed:true}),
   text('FullNameTH','ชื่อ-นามสกุล (ไทย)',{required:true}),text('FullNameEN','Full name (English)'),text('Nickname','ชื่อเล่น / Nickname'),
   indexedText('Email','อีเมล / Email',true),text('Phone','โทรศัพท์ / Phone',{required:true}),text('PositionApplied','ตำแหน่งที่สมัคร / Position',{required:true}),indexedText('JobKey','Job Key'),
-  choice('ExpectedSalary','เงินเดือนที่ต้องการ / Expected salary',salaryChoices),dateTime('AvailableStartDate','วันที่พร้อมเริ่มงาน / Available start date',true),
+  {name:'ExpectedSalaryAmount',displayName:'เงินเดือนที่ต้องการ / Expected salary',number:{decimalPlaces:'none'}},dateTime('AvailableStartDate','วันที่พร้อมเริ่มงาน / Available start date',true),
   choice('RecruitmentStatus','สถานะ / Status',['New','Review','Interview','Offered','Rejected'],{required:true,indexed:true}),
   {name:'AssignedHR',displayName:'ผู้รับผิดชอบ / Assigned HR',personOrGroup:{allowMultipleSelection:false,chooseFromType:'peopleOnly'},indexed:true},
   choice('PreferredLanguage','ภาษา / Language',['th','en']),text('PrivacyNoticeVersion','Privacy notice version'),dateTime('AcknowledgedAt','Acknowledged at'),
@@ -75,7 +75,7 @@ export async function sharePointGraph<T>(token:string,path:string,init:RequestIn
 }
 
 type GraphList={id:string;displayName?:string;name?:string};
-type GraphColumn={id:string;name?:string};
+type GraphColumn={id:string;name?:string;displayName?:string};
 
 export async function provisionSharePoint(){
  const token=await sharePointToken();
@@ -98,12 +98,16 @@ export async function provisionSharePoint(){
    }
   }else{
    existing.push(definition.displayName);
-   const current=await sharePointGraph<{value:GraphColumn[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns?$select=id,name&$top=200`);
+   const current=await sharePointGraph<{value:GraphColumn[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns?$select=id,name,displayName&$top=200`);
    const names=new Set(current.value.map(column=>String(column.name||'').toLowerCase()));
    for(const column of definition.columns){
     if(names.has(column.name.toLowerCase()))continue;
     await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns`,{method:'POST',body:JSON.stringify(column)});
     columnsAdded.push(`${definition.displayName}.${column.name}`);
+   }
+   if(definition.displayName==='Applications'){
+    const legacy=current.value.find(column=>column.name?.toLowerCase()==='expectedsalary');
+    if(legacy)await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns/${encodeURIComponent(legacy.id)}`,{method:'PATCH',body:JSON.stringify({displayName:'ช่วงเงินเดือนเดิม / Legacy salary range',hidden:true})});
    }
   }
  }
