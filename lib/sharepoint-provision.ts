@@ -1,9 +1,9 @@
 import {authConfig} from '@/lib/microsoft-auth';
 import {getM365Secret} from '@/lib/m365-secret';
 
-const SITE_HOSTNAME='royalphuketmarina2002.sharepoint.com';
-const SITE_PATH='/sites/HRApplication';
-export const SHAREPOINT_SITE_URL=`https://${SITE_HOSTNAME}${SITE_PATH}`;
+export const SHAREPOINT_SITE_HOSTNAME='royalphuketmarina2002.sharepoint.com';
+export const SHAREPOINT_SITE_PATH='/sites/HRApplication';
+export const SHAREPOINT_SITE_URL=`https://${SHAREPOINT_SITE_HOSTNAME}${SHAREPOINT_SITE_PATH}`;
 
 type ColumnDefinition=Record<string,unknown>&{name:string;displayName:string};
 type ListDefinition={displayName:string;description:string;template:'genericList'|'documentLibrary';columns:ColumnDefinition[]};
@@ -56,9 +56,9 @@ const lists:ListDefinition[]=[
  ]}
 ];
 
-class GraphError extends Error{constructor(public status:number,public code:string){super(code);}}
+export class GraphError extends Error{constructor(public status:number,public code:string){super(code);}}
 
-async function appToken(){
+export async function sharePointToken(){
  const config=authConfig(),secret=await getM365Secret();
  if(!config.tenant||!config.client||!secret)throw new GraphError(400,'MicrosoftAppNotConfigured');
  const response=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(config.tenant)}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:config.client,client_secret:secret,scope:'https://graph.microsoft.com/.default',grant_type:'client_credentials'}),signal:AbortSignal.timeout(12000)});
@@ -68,7 +68,7 @@ async function appToken(){
  return body.access_token;
 }
 
-async function graph<T>(token:string,path:string,init:RequestInit={}):Promise<T>{
+export async function sharePointGraph<T>(token:string,path:string,init:RequestInit={}):Promise<T>{
  const response=await fetch(`https://graph.microsoft.com/v1.0${path}`,{...init,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',...(init.headers||{})},signal:AbortSignal.timeout(20000)});
  if(!response.ok){let code='GraphRequestFailed';try{const body=await response.json() as {error?:{code?:unknown}};if(typeof body.error?.code==='string'&&/^[a-zA-Z0-9_.-]{1,100}$/.test(body.error.code))code=body.error.code;}catch{}throw new GraphError(response.status,code);}
  return response.status===204?undefined as T:await response.json() as T;
@@ -78,31 +78,31 @@ type GraphList={id:string;displayName?:string;name?:string};
 type GraphColumn={id:string;name?:string};
 
 export async function provisionSharePoint(){
- const token=await appToken();
- const site=await graph<{id:string;webUrl?:string}>(token,`/sites/${SITE_HOSTNAME}:${SITE_PATH}?$select=id,webUrl`);
- const listed=await graph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
+ const token=await sharePointToken();
+ const site=await sharePointGraph<{id:string;webUrl?:string}>(token,`/sites/${SHAREPOINT_SITE_HOSTNAME}:${SHAREPOINT_SITE_PATH}?$select=id,webUrl`);
+ const listed=await sharePointGraph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
  const byName=new Map(listed.value.map(item=>[String(item.displayName||item.name||'').toLowerCase(),item]));
  const created:string[]=[],existing:string[]=[],columnsAdded:string[]=[];
  for(const definition of lists){
   let list=byName.get(definition.displayName.toLowerCase());
   if(!list){
    try{
-    list=await graph<GraphList>(token,`/sites/${encodeURIComponent(site.id)}/lists`,{method:'POST',body:JSON.stringify({displayName:definition.displayName,description:definition.description,columns:definition.columns,list:{template:definition.template}})});
+    list=await sharePointGraph<GraphList>(token,`/sites/${encodeURIComponent(site.id)}/lists`,{method:'POST',body:JSON.stringify({displayName:definition.displayName,description:definition.description,columns:definition.columns,list:{template:definition.template}})});
     created.push(definition.displayName);
    }catch(error){
     if(!(error instanceof GraphError)||error.status!==409)throw error;
-    const refreshed=await graph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
+    const refreshed=await sharePointGraph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
     list=refreshed.value.find(item=>String(item.displayName||item.name||'').toLowerCase()===definition.displayName.toLowerCase());
     if(!list)throw error;
     existing.push(definition.displayName);
    }
   }else{
    existing.push(definition.displayName);
-   const current=await graph<{value:GraphColumn[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns?$select=id,name&$top=200`);
+   const current=await sharePointGraph<{value:GraphColumn[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns?$select=id,name&$top=200`);
    const names=new Set(current.value.map(column=>String(column.name||'').toLowerCase()));
    for(const column of definition.columns){
     if(names.has(column.name.toLowerCase()))continue;
-    await graph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns`,{method:'POST',body:JSON.stringify(column)});
+    await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(list.id)}/columns`,{method:'POST',body:JSON.stringify(column)});
     columnsAdded.push(`${definition.displayName}.${column.name}`);
    }
   }
