@@ -10,6 +10,14 @@
 :root{--ink:#1e365b;--navy:#1e365b;--navy-light:#edf2f9;--muted:#5d6d83;--line:#dce3ed;--canvas:#f5f7fb}
 .brand{display:flex;align-items:center;flex-shrink:0}
 .brand-logo{display:block;width:198px;height:66px;object-fit:contain;border-radius:4px;background:#1e365b}
+
+/* Required-field feedback: visible on both desktop and mobile after validation. */
+.field input[aria-invalid="true"],.field select[aria-invalid="true"],.field textarea[aria-invalid="true"]{border-color:#b42318;background:#fff7f6;box-shadow:0 0 0 2px rgba(180,35,24,.14)}
+.field:has(input[aria-invalid="true"])::after,.field:has(select[aria-invalid="true"])::after,.field:has(textarea[aria-invalid="true"])::after{content:'กรุณากรอกหรือตรวจสอบข้อมูลช่องนี้ / Please check this field';color:#b42318;font-size:.875rem;font-weight:550;line-height:1.4}
+.document-upload[aria-invalid="true"],.repeater[aria-invalid="true"]{border-color:#b42318;background:#fff7f6;box-shadow:0 0 0 2px rgba(180,35,24,.14)}
+.document-upload[aria-invalid="true"]::after{content:'กรุณาแนบ Resume หรือ CV ก่อนส่งใบสมัคร / Please attach a Resume or CV';color:#b42318;font-size:.9375rem;font-weight:650;line-height:1.5}
+.repeater[aria-invalid="true"]::before{content:'กรุณาเพิ่มและกรอกข้อมูลส่วนนี้ให้ครบ / Please complete this section';display:block;color:#b42318;font-size:.875rem;font-weight:550;margin-bottom:10px}
+.check-field input[aria-invalid="true"]{outline:2px solid #b42318;outline-offset:2px}
 header{height:auto;min-height:100px}.header-inner{min-height:100px;gap:20px}.header-inner nav{height:100px;flex-shrink:0}
 .portal-name{font-size:1rem}.header-inner nav button{font-size:1rem}.private-tag{font-size:.875rem}
 .apply-layout{grid-template-columns:275px minmax(0,1fr) 220px;gap:22px}

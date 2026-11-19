@@ -1,4 +1,3 @@
-import {salaryOptions} from '@/lib/salary-options';
 export type ApplicationData = Record<string, any>;
 export type ApplicationIssue = {step:number;path:string;message:string};
 export const requiredFields:Record<string,{step:number;label:string}> = Object.fromEntries([
@@ -52,8 +51,7 @@ export function validateApplication(data:unknown,onlyStep?:number):ApplicationIs
  for(const [k,step] of [['phone',0],['emergencyPhone',5],['spousePhone',1],['fatherPhone',1],['motherPhone',1]] as const)if(hasValue(d[k])&&!(k==='spousePhone'&&d.marital!=='แต่งงาน')&&!phoneOk(d[k]))add(step,k,'กรุณาตรวจสอบหมายเลขโทรศัพท์');
  if(hasValue(d.email)&&(typeof d.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())))add(0,'email','กรุณากรอกอีเมลให้ถูกต้อง');
  for(const k of ['startDate','dob'])if(hasValue(d[k])&&(!dateOk(d[k])||(k==='dob'&&d[k]>new Date().toISOString().slice(0,10))))add(0,k,k==='dob'?'กรุณาระบุวันเกิดที่ถูกต้องและไม่ใช่วันในอนาคต':'กรุณาระบุวันที่เริ่มงานให้ถูกต้อง');
- if(hasValue(d.salary)&&!salaryOptions.some(option=>option.value===d.salary))add(0,'salary','กรุณาเลือกช่วงเงินเดือนจากตัวเลือก');
- for(const [k,step] of [['children',1],['childrenSchool',1]] as const)if(hasValue(d[k])&&(!numeric(d[k])||!Number.isInteger(Number(d[k]))))add(step,k,'กรุณากรอกตัวเลขตั้งแต่ 0 ขึ้นไป โดยไม่มีทศนิยม');
+ for(const [k,step] of [['salary',0],['children',1],['childrenSchool',1]] as const)if(hasValue(d[k])&&(!numeric(d[k])||(k!=='salary'&&!Number.isInteger(Number(d[k])))))add(step,k,'กรุณากรอกตัวเลขตั้งแต่ 0 ขึ้นไป'+(k!=='salary'?' โดยไม่มีทศนิยม':''));
  if(numeric(d.children)&&numeric(d.childrenSchool)&&Number(d.childrenSchool)>Number(d.children))add(1,'childrenSchool','จำนวนบุตรที่กำลังศึกษาต้องไม่เกินจำนวนบุตรทั้งหมด');
  if(!Array.isArray(d.files)||!d.files.some((f:any)=>f&&typeof f.key==='string'&&/^[a-f0-9-]{36}$/i.test(f.key)&&typeof f.name==='string'&&f.name.trim()&&['application/pdf','image/jpeg','image/png'].includes(f.type)&&Number.isFinite(f.size)&&f.size>0&&f.size<=5*1024*1024))add(6,'files','กรุณาแนบ Resume หรือ CV อย่างน้อย 1 ไฟล์ / Please upload a Resume or CV');
  if(d.certify!==true)add(6,'certify','กรุณารับรองความถูกต้องของข้อมูล');

@@ -23,7 +23,7 @@ export async function generateApplicationPdf(application:Application,loader:Load
  function choice(key:string,page:number,top:number,options:Record<string,number>){const x=options[string(d[key])];if(x!==undefined)dot(page,x,top);}
  const date=(value:unknown)=>{const text=string(value);if(/^\d{4}-\d{2}-\d{2}$/.test(text))return text.slice(8,10)+'/'+text.slice(5,7)+'/'+text.slice(0,4);return text;};
  // Page one: the supplied form's original field positions, in PDF points.
- field('position',0,150,214,250,15,10);box(0,d.salary,495,217,82,12,'เงินเดือนที่ต้องการ',8);
+ field('position',0,150,214,250,15,10);box(0,d.salary?Number(d.salary).toLocaleString('en-US'):d.salary,495,217,82,12,'เงินเดือนที่ต้องการ',10);
  field('nameEn',0,231,247,145,12);field('nameTh',0,205,268,172,12);field('nickname',0,415,271,55,12);
  if(d.gender==='ชาย')box(0,'X',560,246,15);else if(d.gender==='หญิง')box(0,'X',560,268,15);
  field('address',0,159,302,218,12,8);field('phone',0,418,302,51,10,7);field('email',0,480,305,97,10,7);
