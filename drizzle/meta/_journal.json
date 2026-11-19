@@ -36,6 +36,13 @@
       "when": 1794797283193,
       "tag": "0004_milky_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795050000000,
+      "tag": "0005_admin_settings",
+      "breakpoints": true
     }
   ]
 }

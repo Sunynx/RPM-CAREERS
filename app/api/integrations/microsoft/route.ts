@@ -1,12 +1,68 @@
+import {env} from 'cloudflare:workers';
 import {canManageIntegrations} from '@/lib/integration-admin';
 import {authConfig} from '@/lib/microsoft-auth';
 import {getM365Secret,saveM365Secret} from '@/lib/m365-secret';
 import {sendMicrosoftTestMail,testMailSender,validMailAddress} from '@/lib/m365-test-mail';
 import {provisionSharePoint,sharePointProvisionError,SHAREPOINT_SITE_URL} from '@/lib/sharepoint-provision';
-import {sharePointSyncMessage,syncApplicationReviewToSharePoint,syncApplicationToSharePoint,syncJobToSharePoint} from '@/lib/sharepoint-sync';
-import {env} from 'cloudflare:workers';
+import {clearSharePointApplicationData,sharePointSyncMessage,syncApplicationReviewToSharePoint,syncApplicationToSharePoint,syncJobToSharePoint} from '@/lib/sharepoint-sync';
+import {getSystemSettings,saveSystemSettings} from '@/lib/system-settings';
+
 export const dynamic='force-dynamic';
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
-export async function GET(){if(!await canManageIntegrations())return json({error:'Forbidden'},403);const c=authConfig();return json({tenant:c.tenant,client:c.client,secretConfigured:!!await getM365Secret(),microsoftEnabled:c.microsoft,sender:testMailSender(),sharePointSite:SHAREPOINT_SITE_URL});}
-async function syncExisting(origin:string){const applications=await env.DB!.prepare("SELECT id,status,data,created,note FROM applications WHERE status!='Draft' ORDER BY created LIMIT 25").all(),jobs=await env.DB!.prepare('SELECT id,status,data FROM jobs ORDER BY created LIMIT 100').all();let applicationCount=0,jobCount=0;const failed:string[]=[];for(const row of applications.results as any[]){try{const data=JSON.parse(row.data);await syncApplicationToSharePoint(row.id,data,row.created,origin);if(row.status!=='New'||row.note)await syncApplicationReviewToSharePoint(row.id,row.status,row.note||undefined,'System migration');applicationCount++;}catch(error){failed.push(`${row.id}: ${sharePointSyncMessage(error)}`);}}for(const row of jobs.results as any[]){try{await syncJobToSharePoint(row.id,row.status,JSON.parse(row.data));jobCount++;}catch(error){failed.push(`Job ${row.id}: ${sharePointSyncMessage(error)}`);}}return {applicationCount,jobCount,failed,hasMore:applications.results.length===25};}
-export async function POST(req:Request){if(!await canManageIntegrations()||req.headers.get('origin')!==new URL(req.url).origin)return json({error:'Forbidden'},403);let action='';try{const body=await req.json() as {action?:string;secret?:string;recipient?:unknown};action=body.action||'';if(action==='save'){if(typeof body.secret!=='string'||!body.secret.trim()||body.secret.length>8000)return json({error:'Invalid secret'},400);await saveM365Secret(body.secret);return json({saved:true});}if(action==='send-test'){if(!validMailAddress(body.recipient))return json({error:'กรุณาระบุอีเมลผู้รับทดสอบให้ถูกต้อง'},400);const result=await sendMicrosoftTestMail(body.recipient);return json(result.data,result.status);}if(action==='provision-sharepoint')return json(await provisionSharePoint());if(action==='sync-sharepoint-existing')return json(await syncExisting(new URL(req.url).origin));if(action==='test'){const c=authConfig(),secret=await getM365Secret();if(!secret)return json({error:'Secret not configured'},400);const r=await fetch(`https://login.microsoftonline.com/${c.tenant}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:c.client,client_secret:secret,grant_type:'client_credentials',scope:'https://graph.microsoft.com/.default'}),signal:AbortSignal.timeout(10000)});if(!r.ok)return json({error:'Microsoft rejected the app credentials. Verify the Client Secret Value and expiry.'},400);return json({valid:true,note:'Credentials verified. This does not verify mailbox send permissions and sends no email.'});}return json({error:'Invalid action'},400);}catch(error){if(action==='provision-sharepoint'){const result=sharePointProvisionError(error);return json(result.data,result.status);}if(action==='sync-sharepoint-existing')return json({error:sharePointSyncMessage(error)},502);return json({error:'Unable to save or verify Microsoft configuration'},500)}}
+
+export async function GET(){
+ if(!await canManageIntegrations())return json({error:'Forbidden'},403);
+ const c=authConfig();
+ return json({tenant:c.tenant,client:c.client,secretConfigured:!!await getM365Secret(),microsoftEnabled:c.microsoft,sender:testMailSender(),sharePointSite:SHAREPOINT_SITE_URL,systemSettings:await getSystemSettings()});
+}
+
+async function syncExisting(origin:string){
+ const applications=await env.DB!.prepare("SELECT id,status,data,created,note FROM applications WHERE status!='Draft' ORDER BY created LIMIT 25").all();
+ const jobs=await env.DB!.prepare('SELECT id,status,data FROM jobs ORDER BY created LIMIT 100').all();
+ let applicationCount=0,jobCount=0;const failed:string[]=[];
+ for(const row of applications.results as any[]){try{const data=JSON.parse(row.data);await syncApplicationToSharePoint(row.id,data,row.created,origin);if(row.status!=='New'||row.note)await syncApplicationReviewToSharePoint(row.id,row.status,row.note||undefined,'System migration');applicationCount++;}catch(error){failed.push(`${row.id}: ${sharePointSyncMessage(error)}`);}}
+ for(const row of jobs.results as any[]){try{await syncJobToSharePoint(row.id,row.status,JSON.parse(row.data));jobCount++;}catch(error){failed.push(`Job ${row.id}: ${sharePointSyncMessage(error)}`);}}
+ return {applicationCount,jobCount,failed,hasMore:applications.results.length===25};
+}
+
+async function clearTestData(){
+ const sharePoint=await clearSharePointApplicationData();let fileCount=0,cursor:string|undefined;
+ do{const page=await env.BUCKET!.list({limit:1000,cursor});const keys=page.objects.map(item=>item.key);if(keys.length){await env.BUCKET!.delete(keys);fileCount+=keys.length;}cursor=page.truncated?page.cursor:undefined;}while(cursor);
+ await env.DB!.batch([env.DB!.prepare('DELETE FROM mail_receipts'),env.DB!.prepare('DELETE FROM application_owners'),env.DB!.prepare('DELETE FROM applications'),env.DB!.prepare('DELETE FROM file_owners')]);
+ return {sharePoint,fileCount};
+}
+
+export async function POST(req:Request){
+ if(!await canManageIntegrations()||req.headers.get('origin')!==new URL(req.url).origin)return json({error:'Forbidden'},403);
+ let action='';
+ try{
+  const body=await req.json() as {action?:string;secret?:string;recipient?:unknown;confirmation?:unknown;settings?:unknown};action=body.action||'';
+  if(action==='save'){
+   if(typeof body.secret!=='string'||!body.secret.trim()||body.secret.length>8000)return json({error:'Invalid secret'},400);
+   await saveM365Secret(body.secret);return json({saved:true});
+  }
+  if(action==='save-system-settings')return json({settings:await saveSystemSettings(body.settings)});
+  if(action==='send-test'){
+   if(!validMailAddress(body.recipient))return json({error:'กรุณาระบุอีเมลผู้รับทดสอบให้ถูกต้อง'},400);
+   const result=await sendMicrosoftTestMail(body.recipient);return json(result.data,result.status);
+  }
+  if(action==='provision-sharepoint')return json(await provisionSharePoint());
+  if(action==='sync-sharepoint-existing')return json(await syncExisting(new URL(req.url).origin));
+  if(action==='clear-test-data'){
+   if(body.confirmation!=='DELETE_TEST_APPLICATIONS')return json({error:'Confirmation required'},400);
+   return json(await clearTestData());
+  }
+  if(action==='test'){
+   const c=authConfig(),secret=await getM365Secret();if(!secret)return json({error:'Secret not configured'},400);
+   const r=await fetch(`https://login.microsoftonline.com/${c.tenant}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:c.client,client_secret:secret,grant_type:'client_credentials',scope:'https://graph.microsoft.com/.default'}),signal:AbortSignal.timeout(10000)});
+   if(!r.ok)return json({error:'Microsoft rejected the app credentials. Verify the Client Secret Value and expiry.'},400);
+   return json({valid:true,note:'Credentials verified. This does not verify mailbox send permissions and sends no email.'});
+  }
+  return json({error:'Invalid action'},400);
+ }catch(error){
+  if(action==='provision-sharepoint'){const result=sharePointProvisionError(error);return json(result.data,result.status);}
+  if(action==='sync-sharepoint-existing'||action==='clear-test-data')return json({error:sharePointSyncMessage(error)},502);
+  if(action==='save-system-settings')return json({error:'กรุณาตรวจค่าตั้งค่าระบบ'},400);
+  return json({error:'Unable to save or verify Microsoft configuration'},500);
+ }
+}

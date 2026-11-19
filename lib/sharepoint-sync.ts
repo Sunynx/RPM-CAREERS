@@ -2,6 +2,7 @@ import {env} from 'cloudflare:workers';
 import {generateApplicationPdf} from '@/lib/application-pdf';
 import {GraphError,SHAREPOINT_SITE_HOSTNAME,SHAREPOINT_SITE_PATH,sharePointGraph,sharePointToken} from '@/lib/sharepoint-provision';
 import type {JobData} from '@/lib/careers-content';
+import {getSystemSettings} from '@/lib/system-settings';
 
 type GraphList={id:string;displayName?:string;name?:string};
 type SyncContext={token:string;siteId:string;lists:Record<string,string>;documentsDriveId:string};
@@ -72,9 +73,9 @@ function details(data:Record<string,any>){
 }
 
 export async function syncApplicationToSharePoint(applicationId:string,data:Record<string,any>,submittedAt:string,origin:string){
- const ctx=await context(),year=String(new Date(submittedAt).getUTCFullYear());
- const retention=new Date(submittedAt);retention.setUTCFullYear(retention.getUTCFullYear()+2);
- await upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalaryAmount:salaryAmount(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:'2026-11',AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)});
+ const ctx=await context(),year=String(new Date(submittedAt).getUTCFullYear()),settings=await getSystemSettings();
+ const retention=new Date(submittedAt);retention.setUTCFullYear(retention.getUTCFullYear()+settings.retentionYears);
+ await upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalaryAmount:salaryAmount(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:settings.privacyNoticeVersion,AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)});
  await upsertItem(ctx,'ApplicationDetails','ApplicationKey',applicationId,{Title:applicationId,ApplicationKey:applicationId,SchemaVersion:1,...details(data)});
  const yearFolder=await ensureFolder(ctx,null,year);await ensureFolder(ctx,yearFolder.id,applicationId);
  for(const [index,file] of ((Array.isArray(data.files)?data.files:[]) as StoredFile[]).entries())await uploadStoredFile(ctx,applicationId,year,file,'Resume',index);
@@ -99,5 +100,27 @@ export async function syncApplicationReviewToSharePoint(applicationId:string,sta
 export async function syncJobToSharePoint(jobId:string,status:string,data:JobData){const ctx=await context();await upsertItem(ctx,'Jobs','JobKey',jobId,{Title:data.titleTh||data.titleEn||jobId,JobKey:jobId,TitleEN:data.titleEn,Department:data.department,Location:data.location,SalaryRange:data.salary,JobStatus:status==='open'?'Open':'Closed',DescriptionTH:data.detailsTh,DescriptionEN:data.detailsEn});}
 
 export async function deleteJobFromSharePoint(jobId:string){const ctx=await context(),itemId=await findItem(ctx,'Jobs','JobKey',jobId);if(itemId)await sharePointGraph(ctx.token,`/sites/${encodeURIComponent(ctx.siteId)}/lists/${encodeURIComponent(ctx.lists.Jobs)}/items/${encodeURIComponent(itemId)}`,{method:'DELETE'});}
+
+async function deleteInBatches(items:Array<{id:string}>,remove:(id:string)=>Promise<unknown>){for(let index=0;index<items.length;index+=10)await Promise.all(items.slice(index,index+10).map(item=>remove(item.id)));}
+
+export async function clearSharePointApplicationData(){
+ const ctx=await context();const deleted:Record<string,number>={};
+ for(const listName of ['ApplicationEvents','HRNotes','ApplicationDetails','Applications']){
+  let count=0;
+  for(let page=0;page<100;page++){
+   const result=await sharePointGraph<{value:Array<{id:string}>}>(ctx.token,`/sites/${encodeURIComponent(ctx.siteId)}/lists/${encodeURIComponent(ctx.lists[listName])}/items?$select=id&$top=200`);
+   if(!result.value.length)break;
+   await deleteInBatches(result.value,id=>sharePointGraph(ctx.token,`/sites/${encodeURIComponent(ctx.siteId)}/lists/${encodeURIComponent(ctx.lists[listName])}/items/${encodeURIComponent(id)}`,{method:'DELETE'}));count+=result.value.length;
+  }
+  deleted[listName]=count;
+ }
+ let documentCount=0;
+ for(let page=0;page<100;page++){
+  const result=await sharePointGraph<{value:Array<{id:string}>}>(ctx.token,`/drives/${encodeURIComponent(ctx.documentsDriveId)}/root/children?$select=id&$top=200`);
+  if(!result.value.length)break;
+  await deleteInBatches(result.value,id=>sharePointGraph(ctx.token,`/drives/${encodeURIComponent(ctx.documentsDriveId)}/items/${encodeURIComponent(id)}`,{method:'DELETE'}));documentCount+=result.value.length;
+ }
+ deleted.ApplicationDocuments=documentCount;return deleted;
+}
 
 export function sharePointSyncMessage(error:unknown){if(error instanceof GraphError){if(error.code==='SharePointSchemaMissing')return 'โครงสร้างฐานข้อมูล SharePoint ไม่ครบ กรุณาเปิดหน้าตั้งค่า Microsoft 365 แล้วกดสร้าง/ตรวจฐานข้อมูล';if(error.status===403)return 'SharePoint ปฏิเสธสิทธิ์ กรุณาตรวจ Sites.Manage.All และ Grant admin consent';if(error.code==='StoredFileMissing'||error.code==='StoredPhotoMissing')return 'ไม่พบไฟล์ Resume หรือรูปในพื้นที่ชั่วคราว กรุณาอัปโหลดใหม่';return `บันทึก SharePoint ไม่สำเร็จ (HTTP ${error.status} · ${error.code})`; }return 'เชื่อมต่อ SharePoint ไม่สำเร็จ กรุณาลองใหม่';}

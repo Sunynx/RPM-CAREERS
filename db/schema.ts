@@ -20,3 +20,6 @@ export const mailReceipts = sqliteTable('mail_receipts', {
 export const integrationSecrets = sqliteTable('integration_secrets', {
  id:text('id').primaryKey(), encrypted:text('encrypted').notNull(), updated:text('updated').notNull()
 });
+export const systemSettings = sqliteTable('system_settings', {
+ id:text('id').primaryKey(), value:text('value').notNull(), updated:text('updated').notNull()
+});
