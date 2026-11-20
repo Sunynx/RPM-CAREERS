@@ -6,6 +6,7 @@ import {getSystemSettings} from '@/lib/system-settings';
 
 type GraphList={id:string;displayName?:string;name?:string};
 type SyncContext={token:string;siteId:string;lists:Record<string,string>;documentsDriveId:string};
+type CachedContext=Omit<SyncContext,'token'>;
 type StoredFile={key:string;name:string;type:string;size:number};
 
 const requiredLists=['Applications','ApplicationDetails','ApplicationDocuments','ApplicationEvents','HRNotes','Jobs'] as const;
@@ -14,9 +15,9 @@ const safeJson=(value:unknown)=>JSON.stringify(value??null);
 const odata=(value:string)=>value.replaceAll("'","''");
 const pathPart=(value:string)=>encodeURIComponent(value.replace(/[~"#%&*:<>?/\\{|}]/g,'-').replace(/[. ]+$/g,'').slice(0,120)||'file');
 const salaryAmount=(value:unknown)=>{const text=String(value??'').trim();if(!/^\d[\d,]*(?:\.\d+)?$/.test(text))return undefined;const amount=Number(text.replaceAll(',',''));return Number.isFinite(amount)?amount:undefined;};
+let cachedContext:Promise<CachedContext>|null=null;
 
-async function context():Promise<SyncContext>{
- const token=await sharePointToken();
+async function resolveContext(token:string):Promise<CachedContext>{
  const site=await sharePointGraph<{id:string}>(token,`/sites/${SHAREPOINT_SITE_HOSTNAME}:${SHAREPOINT_SITE_PATH}?$select=id`);
  const response=await sharePointGraph<{value:GraphList[]}>(token,`/sites/${encodeURIComponent(site.id)}/lists?$select=id,name,displayName&$top=200`);
  const lists:Record<string,string>={};for(const list of response.value){const name=String(list.displayName||list.name||'');if(name)lists[name]=list.id;}
@@ -25,7 +26,14 @@ async function context():Promise<SyncContext>{
  if(!applicationColumns.value.some(column=>column.name?.toLowerCase()==='expectedsalaryamount'))await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.Applications)}/columns`,{method:'POST',body:JSON.stringify({name:'ExpectedSalaryAmount',displayName:'เงินเดือนที่ต้องการ / Expected salary',number:{decimalPlaces:'none'}})});
  const legacySalary=applicationColumns.value.find(column=>column.name?.toLowerCase()==='expectedsalary');if(legacySalary)await sharePointGraph(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.Applications)}/columns/${encodeURIComponent(legacySalary.id)}`,{method:'PATCH',body:JSON.stringify({displayName:'ช่วงเงินเดือนเดิม / Legacy salary range',hidden:true})});
  const drive=await sharePointGraph<{id:string}>(token,`/sites/${encodeURIComponent(site.id)}/lists/${encodeURIComponent(lists.ApplicationDocuments)}/drive?$select=id`);
- return {token,siteId:site.id,lists,documentsDriveId:drive.id};
+ return {siteId:site.id,lists,documentsDriveId:drive.id};
+}
+
+async function context():Promise<SyncContext>{
+ const token=await sharePointToken();
+ cachedContext??=resolveContext(token);
+ try{return {token,...await cachedContext};}
+ catch(error){cachedContext=null;throw error;}
 }
 
 async function findItem(ctx:SyncContext,listName:string,keyName:string,key:string){
@@ -73,17 +81,21 @@ function details(data:Record<string,any>){
 }
 
 export async function syncApplicationToSharePoint(applicationId:string,data:Record<string,any>,submittedAt:string,origin:string){
- const ctx=await context(),year=String(new Date(submittedAt).getUTCFullYear()),settings=await getSystemSettings();
+ const [ctx,settings]=await Promise.all([context(),getSystemSettings()]),year=String(new Date(submittedAt).getUTCFullYear());
  const retention=new Date(submittedAt);retention.setUTCFullYear(retention.getUTCFullYear()+settings.retentionYears);
- await upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalaryAmount:salaryAmount(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:settings.privacyNoticeVersion,AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)});
- await upsertItem(ctx,'ApplicationDetails','ApplicationKey',applicationId,{Title:applicationId,ApplicationKey:applicationId,SchemaVersion:1,...details(data)});
- const yearFolder=await ensureFolder(ctx,null,year);await ensureFolder(ctx,yearFolder.id,applicationId);
- for(const [index,file] of ((Array.isArray(data.files)?data.files:[]) as StoredFile[]).entries())await uploadStoredFile(ctx,applicationId,year,file,'Resume',index);
- if(data.photo?.key)await uploadStoredFile(ctx,applicationId,year,data.photo as StoredFile,'Photo');
  const loader=async(path:string)=>{if(path.startsWith('/api/files?key=')){const key=new URL(path,'https://local.invalid').searchParams.get('key')||'';const file=await env.BUCKET!.get(key);if(!file)throw new GraphError(404,'StoredPhotoMissing');return file.arrayBuffer();}const response=await fetch(new URL(path,origin),{cache:'no-store'});if(!response.ok)throw new GraphError(response.status,'PdfAssetMissing');return response.arrayBuffer();};
- const pdf=await generateApplicationPdf({id:applicationId,data,created:submittedAt},loader);
- const pdfBuffer=pdf.buffer.slice(pdf.byteOffset,pdf.byteOffset+pdf.byteLength) as ArrayBuffer;
- await uploadBytes(ctx,[year,applicationId],`Application-${applicationId}.pdf`,pdfBuffer,'application/pdf',{ApplicationKey:applicationId,ApplicationNumber:applicationId,DocumentType:'ApplicationPDF',OriginalFileName:`Application-${applicationId}.pdf`,PDFTemplateVersion:'1'});
+ const recordWork=Promise.all([
+  upsertItem(ctx,'Applications','ApplicationKey',applicationId,{Title:data.nameTh||applicationId,ApplicationKey:applicationId,ApplicationNumber:applicationId,SubmittedAt:submittedAt,FullNameTH:data.nameTh,FullNameEN:data.nameEn,Nickname:data.nickname,Email:data.email,Phone:data.phone,PositionApplied:data.position,ExpectedSalaryAmount:salaryAmount(data.salary),AvailableStartDate:data.startDate,RecruitmentStatus:'New',PreferredLanguage:data.applicationLanguage==='en'?'en':'th',PrivacyNoticeVersion:settings.privacyNoticeVersion,AcknowledgedAt:submittedAt,RetentionUntil:retention.toISOString().slice(0,10)}),
+  upsertItem(ctx,'ApplicationDetails','ApplicationKey',applicationId,{Title:applicationId,ApplicationKey:applicationId,SchemaVersion:1,...details(data)})
+ ]);
+ const folderWork=ensureFolder(ctx,null,year).then(yearFolder=>ensureFolder(ctx,yearFolder.id,applicationId));
+ const pdfWork=generateApplicationPdf({id:applicationId,data,created:submittedAt},loader);
+ await Promise.all([recordWork,folderWork]);
+ const files=(Array.isArray(data.files)?data.files:[]) as StoredFile[];
+ const uploadWork:Promise<unknown>[]=[...files.map((file,index)=>uploadStoredFile(ctx,applicationId,year,file,'Resume',index))];
+ if(data.photo?.key)uploadWork.push(uploadStoredFile(ctx,applicationId,year,data.photo as StoredFile,'Photo'));
+ uploadWork.push(pdfWork.then(pdf=>{const pdfBuffer=pdf.buffer.slice(pdf.byteOffset,pdf.byteOffset+pdf.byteLength) as ArrayBuffer;return uploadBytes(ctx,[year,applicationId],`Application-${applicationId}.pdf`,pdfBuffer,'application/pdf',{ApplicationKey:applicationId,ApplicationNumber:applicationId,DocumentType:'ApplicationPDF',OriginalFileName:`Application-${applicationId}.pdf`,PDFTemplateVersion:'1'});}));
+ await Promise.all(uploadWork);
  await upsertItem(ctx,'ApplicationEvents','EventKey',`${applicationId}:Submitted`,{Title:`Submitted ${applicationId}`,EventKey:`${applicationId}:Submitted`,ApplicationKey:applicationId,EventType:'Submitted',OccurredAt:submittedAt,ActorName:data.nameTh||data.nameEn||'Applicant',ToStatus:'New',ResultCode:'Success',CorrelationID:crypto.randomUUID()});
  return {applicationId};
 }
