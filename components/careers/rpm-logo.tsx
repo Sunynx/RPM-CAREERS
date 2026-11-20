@@ -1,5 +1,5 @@
-type RpmLogoProps={height?:number;className?:string};
+type RpmLogoProps={height?:number;className?:string;tone?:'navy'|'white';label?:string};
 
-export function RpmLogo({height=24,className=''}:RpmLogoProps){
- return <img className={'rpm-system-logo '+className} src="/royal-phuket-marina-logo.png" width={Math.round(height*3)} height={height} alt="" aria-hidden="true"/>;
+export function RpmLogo({height=24,className='',tone='navy',label}:RpmLogoProps){
+ return <span className={`rpm-system-logo rpm-logo-${tone} ${className}`} style={{width:Math.round(height*3),height}} role={label?'img':undefined} aria-label={label} aria-hidden={label?undefined:true}/>;
 }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2172 724" preserveAspectRatio="xMidYMid meet">
+  <filter id="remove-navy" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="
+      0 0 0 0 1
+      0 0 0 0 1
+      0 0 0 0 1
+      .75 .75 .75 0 -1.25"/>
+  </filter>
+  <image href="royal-phuket-marina-logo.png" width="2172" height="724" filter="url(#remove-navy)"/>
+</svg>
