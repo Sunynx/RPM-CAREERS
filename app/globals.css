@@ -10,6 +10,7 @@
 :root{--ink:#1e365b;--navy:#1e365b;--navy-light:#edf2f9;--muted:#5d6d83;--line:#dce3ed;--canvas:#f5f7fb}
 .brand{display:flex;align-items:center;flex-shrink:0}
 .brand-logo{display:block;width:198px;height:66px;object-fit:contain;border-radius:4px;background:#1e365b}
+.header-brand-logo{display:block;width:clamp(190px,20vw,246px);height:auto}
 
 /* Required-field feedback: visible on both desktop and mobile after validation. */
 .field input[aria-invalid="true"],.field select[aria-invalid="true"],.field textarea[aria-invalid="true"]{border-color:#b42318;background:#fff7f6;box-shadow:0 0 0 2px rgba(180,35,24,.14)}
