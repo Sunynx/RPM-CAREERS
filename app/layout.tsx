@@ -4,6 +4,6 @@ export const viewport: Viewport = {width:'device-width',initialScale:1,viewportF
 export const metadata: Metadata = {
  title:'RPM Careers',
  description:'ร่วมเป็นส่วนหนึ่งของ Royal Phuket Marina — ระบบสมัครงานออนไลน์',
- icons:{icon:{url:'/rpm-tab-icon.png',type:'image/png',sizes:'64x64'}},
+ icons:{icon:{url:'/rpm-full-logo-favicon.png',type:'image/png',sizes:'64x64'}},
 };
 export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="th"><body>{children}</body></html>}
